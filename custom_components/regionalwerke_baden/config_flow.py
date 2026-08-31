@@ -140,9 +140,17 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(email.lower())
         if self.source == config_entries.SOURCE_REAUTH:
             self._abort_if_unique_id_mismatch(reason="wrong_account")
-            return self.async_update_reload_and_abort(
-                self._get_reauth_entry(), data_updates=data
-            )
+            entry = self._get_reauth_entry()
+            updates: dict[str, Any] = {"data_updates": data}
+            if CONF_TOTP_SECRET in entry.options:
+                # The coordinator prefers options whenever the key is present, and
+                # the options flow always writes it — "" included. Writing the
+                # secret to data alone would leave it shadowed forever.
+                updates["options"] = {
+                    **entry.options,
+                    CONF_TOTP_SECRET: totp_secret or "",
+                }
+            return self.async_update_reload_and_abort(entry, **updates)
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title=email, data=data)
 
@@ -155,10 +163,15 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             email = (user_input.get("email") or entry.data["email"]).strip()
             password = user_input.get("password") or entry.data["password"]
+            # Same precedence the coordinator uses, so the prefill and the fallback
+            # are the secret actually in force rather than a stale one from data.
+            stored = (
+                entry.options.get(CONF_TOTP_SECRET)
+                if CONF_TOTP_SECRET in entry.options
+                else entry.data.get(CONF_TOTP_SECRET)
+            )
             totp_secret = (
-                user_input.get(CONF_TOTP_SECRET)
-                or entry.data.get(CONF_TOTP_SECRET)
-                or ""
+                user_input.get(CONF_TOTP_SECRET) or stored or ""
             ).strip() or None
             try:
                 await _validate(self.hass, email, password, totp_secret)
