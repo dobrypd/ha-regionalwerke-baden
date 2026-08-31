@@ -1,0 +1,82 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Regionalwerke Baden — logowanie",
+        "description": "Działa zarówno z kontami z uwierzytelnianiem dwuskładnikowym, jak i bez niego. Jeśli w portalu Regionalwerke Baden masz włączone MFA (2FA), możesz opcjonalnie wkleić tutaj swój sekret TOTP, aby uniknąć wpisywania kodu przy każdym ponownym logowaniu (~30 dni). Jeśli zostawisz to pole puste, w następnym kroku zostaniesz poproszony o 6-cyfrowy kod.",
+        "data": {
+          "email": "E-mail",
+          "password": "Hasło",
+          "totp_secret": "Sekret TOTP (opcjonalnie)"
+        },
+        "data_description": {
+          "totp_secret": "Ciąg base32 lub URI otpauth:// z aplikacji uwierzytelniającej. Przechowywany wyłącznie w Home Assistant."
+        }
+      },
+      "mfa": {
+        "title": "Kod dwuskładnikowy",
+        "description": "Twoje konto wymaga 6-cyfrowego kodu. Wpisz go z aplikacji uwierzytelniającej lub użyj kodu zapasowego. Możesz też wkleić sekret TOTP, aby przyszłe logowania odbywały się w pełni automatycznie.",
+        "data": {
+          "code": "Kod",
+          "totp_secret": "Sekret TOTP (opcjonalnie, zapisywany na przyszłość)"
+        },
+        "data_description": {
+          "code": "6-cyfrowy kod aktualnie wyświetlany przez aplikację uwierzytelniającą.",
+          "totp_secret": "Ciąg base32 lub URI otpauth://. Po zapisaniu kod nie będzie już nigdy potrzebny."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ponowne uwierzytelnienie Regionalwerke Baden",
+        "description": "Sesja portalu wygasła. Wpisz ponownie hasło. Jeśli używasz MFA i chcesz automatycznego ponownego logowania, podaj sekret TOTP.",
+        "data": {
+          "email": "E-mail",
+          "password": "Hasło",
+          "totp_secret": "Sekret TOTP (opcjonalnie)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nieprawidłowe dane logowania lub kod dwuskładnikowy",
+      "unknown": "Nieoczekiwany błąd"
+    },
+    "abort": {
+      "reauth_successful": "Ponowne uwierzytelnienie zakończone powodzeniem",
+      "already_configured": "To konto jest już skonfigurowane",
+      "wrong_account": "To inne konto. Uwierzytelnij się kontem, dla którego skonfigurowano tę integrację."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje Regionalwerke Baden",
+        "description": "Zapisz lub usuń sekret TOTP do automatycznego logowania dwuskładnikowego oraz opcjonalnie śledź koszty energii.\n\nŚledzenie kosztów odczytuje opublikowany plik taryf Regionalwerke Baden (dokument nadający się do odczytu maszynowego, który musi publikować każdy szwajcarski operator sieci) i zapisuje odpowiednią statystykę kosztów, którą można wybrać jako „Użyj statystyki” w sekcji Pobór z sieci. Nazwy taryf muszą dokładnie odpowiadać tym z pliku — w przeciwnym razie dziennik wypisze dostępne nazwy.",
+        "data": {
+          "totp_secret": "Sekret TOTP (opcjonalnie)",
+          "cost_enabled": "Śledź koszty energii",
+          "cost_product": "Produkt elektryczny",
+          "cost_grid_tariff": "Taryfa sieciowa",
+          "cost_municipality": "Gmina",
+          "cost_surcharge": "Dodatkowe opłaty (Rp./kWh)"
+        },
+        "data_description": {
+          "totp_secret": "Ciąg base32 lub URI otpauth://. Nadpisuje sekret zapisany podczas dodawania integracji.",
+          "cost_enabled": "Zapisuje statystykę kosztów obok każdej statystyki zużycia. Oddanie do sieci nie jest wyceniane — taryfa za oddaną energię nie znajduje się w pliku taryf.",
+          "cost_product": "Twój produkt w umowie, np. primastrom (standardowy) lub einfachstrom.",
+          "cost_grid_tariff": "Twoja taryfa za korzystanie z sieci. OL7 to taryfa domowa (do 50'000 kWh rocznie).",
+          "cost_municipality": "Służy do wyboru właściwej opłaty koncesyjnej, np. Baden lub Ennetbaden.",
+          "cost_surcharge": "Netzzuschlag i Förderabgabe są naliczane za kWh, ale nie ma ich w pliku taryf. Stałe miesięczne opłaty podstawowe i za pomiar nigdy nie są wliczane; dodaj tutaj swoją część, jeśli chcesz sumę z rachunku zamiast kosztu za kWh."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_sync": {
+        "name": "Ostatnia synchronizacja"
+      },
+      "objekte": {
+        "name": "Punkty pomiarowe"
+      }
+    }
+  }
+}

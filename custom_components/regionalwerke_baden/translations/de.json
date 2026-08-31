@@ -1,0 +1,82 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Regionalwerke Baden — Anmeldung",
+        "description": "Funktioniert für Konten mit und ohne Zwei-Faktor-Authentifizierung. Wenn in Ihrem Regionalwerke-Baden-Portal MFA (2FA) aktiviert ist, können Sie hier optional Ihren TOTP-Schlüssel einfügen, um bei jeder erneuten Anmeldung (~30 Tage) die Codeeingabe zu vermeiden. Lassen Sie das Feld leer, werden Sie im nächsten Schritt nach einem 6-stelligen Code gefragt.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "totp_secret": "TOTP-Schlüssel (optional)"
+        },
+        "data_description": {
+          "totp_secret": "Base32-Zeichenfolge oder otpauth://-URI aus Ihrer Authenticator-App. Wird ausschliesslich in Home Assistant gespeichert."
+        }
+      },
+      "mfa": {
+        "title": "Zwei-Faktor-Code",
+        "description": "Ihr Konto erfordert einen 6-stelligen Code. Geben Sie ihn aus Ihrer Authenticator-App ein oder verwenden Sie einen Backup-Code. Sie können auch Ihren TOTP-Schlüssel einfügen, damit künftige Anmeldungen vollautomatisch erfolgen.",
+        "data": {
+          "code": "Code",
+          "totp_secret": "TOTP-Schlüssel (optional, wird für das nächste Mal gespeichert)"
+        },
+        "data_description": {
+          "code": "Der 6-stellige Code, den Ihre Authenticator-App gerade anzeigt.",
+          "totp_secret": "Base32-Zeichenfolge oder otpauth://-URI. Damit ist nie wieder ein Code nötig."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Regionalwerke Baden erneut authentifizieren",
+        "description": "Die Portalsitzung ist abgelaufen. Bitte geben Sie Ihr Passwort erneut ein. Wenn Sie MFA verwenden und eine automatische Neuanmeldung wünschen, fügen Sie Ihren TOTP-Schlüssel hinzu.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "totp_secret": "TOTP-Schlüssel (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültige Zugangsdaten oder ungültiger Zwei-Faktor-Code",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "reauth_successful": "Erneute Authentifizierung erfolgreich",
+      "already_configured": "Dieses Konto ist bereits eingerichtet",
+      "wrong_account": "Dies ist ein anderes Konto. Bitte authentifizieren Sie sich mit dem Konto, mit dem dieser Eintrag eingerichtet wurde."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Regionalwerke Baden Optionen",
+        "description": "TOTP-Schlüssel für die automatische Zwei-Faktor-Anmeldung speichern oder entfernen und optional die Energiekosten erfassen.\n\nDie Kostenerfassung liest die veröffentlichte Tarifdatei der Regionalwerke Baden (das maschinenlesbare Dokument, das jeder Schweizer Netzbetreiber veröffentlichen muss) und schreibt eine passende Kostenstatistik, die Sie unter Netzbezug als «Statistik verwenden» auswählen können. Die Tarifnamen müssen exakt mit der Datei übereinstimmen — andernfalls listet das Log die verfügbaren Namen auf.",
+        "data": {
+          "totp_secret": "TOTP-Schlüssel (optional)",
+          "cost_enabled": "Energiekosten erfassen",
+          "cost_product": "Stromprodukt",
+          "cost_grid_tariff": "Netznutzungstarif",
+          "cost_municipality": "Gemeinde",
+          "cost_surcharge": "Zusätzliche Abgaben (Rp./kWh)"
+        },
+        "data_description": {
+          "totp_secret": "Base32-Zeichenfolge oder otpauth://-URI. Überschreibt einen beim Einrichten gespeicherten Schlüssel.",
+          "cost_enabled": "Schreibt neben jeder Verbrauchsstatistik eine Kostenstatistik. Die Rücklieferung wird nicht bepreist — die Einspeisevergütung steht nicht in der Tarifdatei.",
+          "cost_product": "Ihr vertragliches Produkt, z. B. primastrom (Standard) oder einfachstrom.",
+          "cost_grid_tariff": "Ihr Netznutzungstarif. OL7 ist der Haushaltstarif (bis 50'000 kWh pro Jahr).",
+          "cost_municipality": "Bestimmt die richtige Konzessionsabgabe, z. B. Baden oder Ennetbaden.",
+          "cost_surcharge": "Netzzuschlag und Förderabgabe werden pro kWh erhoben, stehen aber nicht in der Tarifdatei. Feste Grund- und Messpreise pro Monat sind nie enthalten; ergänzen Sie hier Ihren Anteil, wenn Sie die Rechnungssumme statt der Kosten pro kWh möchten."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_sync": {
+        "name": "Letzte Synchronisierung"
+      },
+      "objekte": {
+        "name": "Messpunkte"
+      }
+    }
+  }
+}

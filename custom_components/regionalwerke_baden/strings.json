@@ -1,0 +1,82 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Regionalwerke Baden — Login",
+        "description": "Works for both MFA and non-MFA accounts. If your Regionalwerke Baden portal has MFA (2FA) enabled, you can optionally paste your TOTP secret here to avoid entering a code on every re-login (~30 days). Leave it empty and you'll be asked for a 6-digit code on the next step.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "totp_secret": "TOTP secret (optional)"
+        },
+        "data_description": {
+          "totp_secret": "Base32 string or otpauth:// URI from your authenticator app. Stored in Home Assistant only."
+        }
+      },
+      "mfa": {
+        "title": "Two-factor code",
+        "description": "Your account requires a 6-digit code. Enter it from your authenticator app, or use a backup code. You can also paste your TOTP secret to enable fully automatic future logins.",
+        "data": {
+          "code": "Code",
+          "totp_secret": "TOTP secret (optional, stored for next time)"
+        },
+        "data_description": {
+          "code": "The 6-digit code currently shown by your authenticator app.",
+          "totp_secret": "Base32 string or otpauth:// URI. With this stored, no code is ever needed again."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Regionalwerke Baden",
+        "description": "The portal session has expired. Re-enter your password. If you use MFA and want automatic re-login, include your TOTP secret.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "totp_secret": "TOTP secret (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials or two-factor code",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "reauth_successful": "Re-authentication successful",
+      "already_configured": "This account is already configured",
+      "wrong_account": "This is a different account. Re-authenticate with the account this entry was set up with."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Regionalwerke Baden options",
+        "description": "Store or clear a TOTP secret for automatic two-factor login, and optionally track what your energy costs.\n\nCost tracking reads Regionalwerke Baden's published tariff file (the machine-readable document every Swiss grid operator must publish) and writes a matching cost statistic you can select as \"Use a statistic\" under Grid consumption. The tariff names must match that file exactly — if one does not, the log lists the available names.",
+        "data": {
+          "totp_secret": "TOTP secret (optional)",
+          "cost_enabled": "Track energy costs",
+          "cost_product": "Electricity product",
+          "cost_grid_tariff": "Grid tariff",
+          "cost_municipality": "Municipality",
+          "cost_surcharge": "Additional surcharges (Rp./kWh)"
+        },
+        "data_description": {
+          "totp_secret": "Base32 string or otpauth:// URI. This overrides any secret saved when the integration was added.",
+          "cost_enabled": "Writes a cost statistic next to each consumption statistic. Return to grid is not priced — feed-in compensation is not in the tariff file.",
+          "cost_product": "Your contracted product, e.g. primastrom (standard) or einfachstrom.",
+          "cost_grid_tariff": "Your grid usage tariff. OL7 is the household one (up to 50'000 kWh per year).",
+          "cost_municipality": "Used to pick the right concession fee, e.g. Baden or Ennetbaden.",
+          "cost_surcharge": "Netzzuschlag plus Förderabgabe, which are charged per kWh but are not in the tariff file. Fixed monthly base and metering fees are never included; add your share here if you want your bill total instead of the cost per kWh."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_sync": {
+        "name": "Last sync"
+      },
+      "objekte": {
+        "name": "Metering points"
+      }
+    }
+  }
+}
