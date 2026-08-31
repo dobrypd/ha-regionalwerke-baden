@@ -1,0 +1,6 @@
+rwb_credentials.txt
+*.xlsx
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

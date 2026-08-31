@@ -1,0 +1,22 @@
+{
+  "domain": "regionalwerke_baden",
+  "name": "Regionalwerke Baden",
+  "version": "0.1.0",
+  "documentation": "https://github.com/dobrypd/ha-regionalwerke-baden",
+  "issue_tracker": "https://github.com/dobrypd/ha-regionalwerke-baden/issues",
+  "codeowners": [
+    "@dobrypd"
+  ],
+  "dependencies": [
+    "recorder"
+  ],
+  "requirements": [
+    "pyotp>=2.9.0"
+  ],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "loggers": [
+    "custom_components.regionalwerke_baden"
+  ]
+}
