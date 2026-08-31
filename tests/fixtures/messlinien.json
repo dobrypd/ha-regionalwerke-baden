@@ -1,0 +1,15 @@
+{
+  "data": [
+    "10001"
+  ],
+  "formData": {
+    "10001": {
+      "id": "10001",
+      "name": "Wirk Lieferung"
+    },
+    "10002": {
+      "id": "10002",
+      "name": "Wirk Rücklieferung"
+    }
+  }
+}

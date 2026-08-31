@@ -1,0 +1,6 @@
+# Pinned to the HA version running on the target box (homeassistant.local: 2026.8.3).
+# pytest-homeassistant-custom-component pins homeassistant exactly, so bump both together.
+homeassistant==2026.8.3
+pytest-homeassistant-custom-component==0.13.357
+aioresponses>=0.7.9
+pyotp>=2.9.0

@@ -1,0 +1,21 @@
+{
+  "data": {
+    "objektId": 99999,
+    "objekte": {
+      "99999": {
+        "id": "99999"
+      }
+    }
+  },
+  "formData": {
+    "99999": {
+      "messpunkte": {
+        "CH9999999999999999999999999999999": {
+          "meteringcode": "CH9999999999999999999999999999999"
+        }
+      },
+      "id": "99999",
+      "bezeichnung": "Anonymized Object, Example Street 1, 5400 Baden"
+    }
+  }
+}

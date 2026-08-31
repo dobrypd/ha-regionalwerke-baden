@@ -1,0 +1,378 @@
+{
+  "dsoName": "Regionalwerke AG Baden",
+  "dsoNumber": 10006012345,
+  "tariffs": [
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "DM7",
+      "tariffType": "metering",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Direktmessung NE7",
+      "prices": {
+        "base": {
+          "price": 5,
+          "priceUnit": "CHF/M"
+        }
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "Konzessionsabgabe",
+      "tariffType": "regional_fees",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "alle",
+      "prices": {
+        "municipalityTaxes": [
+          {
+            "municipalityNumber": 4021,
+            "municipalityName": "Baden",
+            "municipalityBase": {
+              "price": 0,
+              "priceUnit": "CHF/M"
+            },
+            "municipalityEnergy": [
+              {
+                "from": "00:00",
+                "to": "00:00",
+                "price": 0.0058,
+                "priceUnit": "CHF/kWh"
+              }
+            ],
+            "municipalityComment": ""
+          },
+          {
+            "municipalityNumber": 4026,
+            "municipalityName": "Ennetbaden",
+            "municipalityBase": {
+              "price": 0,
+              "priceUnit": "CHF/M"
+            },
+            "municipalityEnergy": [
+              {
+                "from": "00:00",
+                "to": "00:00",
+                "price": 0.005,
+                "priceUnit": "CHF/kWh"
+              }
+            ],
+            "municipalityComment": ""
+          }
+        ]
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "ML5",
+      "tariffType": "grid",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Mittelspannungsanschluss",
+      "prices": {
+        "base": {
+          "price": 330,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.024,
+            "priceUnit": "CHF/kWh"
+          }
+        ],
+        "power": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 4.6,
+            "priceUnit": "CHF/kW/M"
+          }
+        ],
+        "reactivePower": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.036,
+            "priceUnit": "CHF/kVarh"
+          }
+        ],
+        "refundStorage": {
+          "price": 0,
+          "priceUnit": "CHF/kWh"
+        }
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "ML7",
+      "tariffType": "grid",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Niederspannungsanschluss und Jahresverbrauch grösser als 50'000 kWh",
+      "prices": {
+        "base": {
+          "price": 80,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.055,
+            "priceUnit": "CHF/kWh"
+          }
+        ],
+        "power": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 9.5,
+            "priceUnit": "CHF/kW/M"
+          }
+        ],
+        "reactivePower": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.036,
+            "priceUnit": "CHF/kVarh"
+          }
+        ],
+        "refundStorage": {
+          "price": 0,
+          "priceUnit": "CHF/kWh"
+        }
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "OL7",
+      "tariffType": "grid",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Niederspannungsanschluss und Jahresverbrauch bis 50'000 kWh",
+      "prices": {
+        "base": {
+          "price": 10,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.092,
+            "priceUnit": "CHF/kWh"
+          }
+        ],
+        "power": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0,
+            "priceUnit": "CHF/kW/M"
+          }
+        ],
+        "reactivePower": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0,
+            "priceUnit": "CHF/kVarh"
+          }
+        ],
+        "refundStorage": {
+          "price": 0,
+          "priceUnit": "CHF/kWh"
+        }
+      }
+    },
+    {
+      "customerVoltageLevel": 5,
+      "tariffName": "WM5",
+      "tariffType": "metering",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Wandlermessung NE5",
+      "prices": {
+        "base": {
+          "price": 12,
+          "priceUnit": "CHF/M"
+        }
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "WM7",
+      "tariffType": "metering",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Wandlermessung NE7",
+      "prices": {
+        "base": {
+          "price": 12,
+          "priceUnit": "CHF/M"
+        }
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "einfachstrom",
+      "tariffType": "electricity",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Wahlprodukt",
+      "prices": {
+        "base": {
+          "price": 0,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.102,
+            "priceUnit": "CHF/kWh"
+          }
+        ]
+      }
+    },
+    {
+      "customerVoltageLevel": 5,
+      "tariffName": "einfachstrom NE5",
+      "tariffType": "electricity",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Wahlprodukt",
+      "prices": {
+        "base": {
+          "price": 0,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.102,
+            "priceUnit": "CHF/kWh"
+          }
+        ]
+      }
+    },
+    {
+      "customerVoltageLevel": 7,
+      "tariffName": "primastrom",
+      "tariffType": "electricity",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Standardprodukt",
+      "prices": {
+        "base": {
+          "price": 0,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.105,
+            "priceUnit": "CHF/kWh"
+          }
+        ]
+      }
+    },
+    {
+      "customerVoltageLevel": 5,
+      "tariffName": "primastrom NE5",
+      "tariffType": "electricity",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "Standardprodukt",
+      "prices": {
+        "base": {
+          "price": 0,
+          "priceUnit": "CHF/M"
+        },
+        "energy": [
+          {
+            "from": "00:00",
+            "to": "00:00",
+            "price": 0.105,
+            "priceUnit": "CHF/kWh"
+          }
+        ]
+      }
+    },
+    {
+      "customerVoltageLevel": 5,
+      "tariffName": "Konzessionsabgabe NE5",
+      "tariffType": "regional_fees",
+      "tariffForm": "constant",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "comment": "",
+      "customerType": "alle",
+      "prices": {
+        "municipalityTaxes": [
+          {
+            "municipalityNumber": 4021,
+            "municipalityName": "Regionalwerke AG Baden",
+            "municipalityBase": {
+              "price": 0,
+              "priceUnit": "CHF/M"
+            },
+            "municipalityEnergy": [
+              {
+                "from": "00:00",
+                "to": "00:00",
+                "price": 0.0058,
+                "priceUnit": "CHF/kWh"
+              }
+            ],
+            "municipalityComment": ""
+          },
+          {
+            "municipalityNumber": 4026,
+            "municipalityName": "Ennetbaden",
+            "municipalityBase": {
+              "price": 0,
+              "priceUnit": "CHF/M"
+            },
+            "municipalityEnergy": [
+              {
+                "from": "00:00",
+                "to": "00:00",
+                "price": 0.005,
+                "priceUnit": "CHF/kWh"
+              }
+            ],
+            "municipalityComment": ""
+          }
+        ]
+      }
+    }
+  ]
+}
