@@ -42,7 +42,7 @@ Drop-in for any coding agent. Read this before every task. Follows [agents.md](h
 
 - Install: `python3 -m venv .venv && .venv/bin/pip install -r requirements-test.txt -r requirements-lint.txt`. Pins core + `pytest-homeassistant-custom-component` **together** — unpinned, the plugin drags core to a beta.
 - Test (single): `.venv/bin/pytest tests/test_api.py -k test_name -xvs`
-- Test (all offline, the default): `.venv/bin/pytest -m "not integration"` (~5 s, 103 tests)
+- Test (all offline, the default): `.venv/bin/pytest -m "not integration"` (~5 s, 108 tests)
 - Test (live portal): `RWE_MFA_CODE=123456 .venv/bin/pytest -m integration -s` — needs `rwb_credentials.txt` and a fresh code (or `RWE_TOTP_SECRET` to be repeatable)
 - Lint: `ruff check .` and `ruff format . --check`, both green and enforced by CI. `ruff` is pinned in `requirements-lint.txt` because its **default** rule set widens between releases. There is still no ruff config — don't add one.
 
@@ -131,6 +131,9 @@ Drop-in for any coding agent. Read this before every task. Follows [agents.md](h
 - Reauth writes `entry.data`, but `_totp_secret_for` prefers `entry.options` whenever the key exists — and the options flow always writes it, `""` included. A reauth secret must be written through to options too (2026-08-31).
 - `conftest`'s fake-portal route bodies may be async, which is how the timeout tests make a real client hit a real timeout without mocking the HTTP layer (2026-08-31).
 - `manifest.json` keys must be `domain`, `name`, then alphabetical, or hassfest fails the build. Nothing local caught it until `tests/test_manifest.py`; HACS's own check additionally needs repository topics set, which is a GitHub setting and not in the tree (2026-08-31).
+- A one-time MFA code is spent by the **config flow**. The coordinator used to `login()` again at setup, hit the 2FA page and failed with "MFA required: MFA code required" — a second code the user cannot produce, and re-auth looped. The entry carries `CONF_SESSION` (the PHPSESSID) and the coordinator resumes it; only a TOTP account can log in unattended (found on a real deployment 2026-08-31).
+- Sessions are created with `aiohttp.CookieJar(unsafe=True)`. aiohttp drops cookies for IP-address hosts, so with the default jar the fake portal's PHPSESSID vanished and nothing could test session reuse. Harmless against the real domain (2026-08-31).
+- Do not point the fake portal at a hostname: resolving one inside the HA test loop raises "Future attached to a different loop", and phcc's socket allowlist only has `127.0.0.1`. Keep `fake.base` on the bound IP (2026-08-31).
 - Verified live 2026-08-30 against the real portal: discovery keys unchanged, `day2` = 96 points `unit=kwh` matching the portal's own aggregate, `week2` = 672, history starts `2023-01-02` and 2022 is empty — `HISTORIC_EARLIEST_FALLBACK` is correct.
 
 ---
