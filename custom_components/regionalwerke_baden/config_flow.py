@@ -16,13 +16,14 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
-from .api import RwbAuthError, RwbClient, RwbMfaRequired
+from .api import RwbAuthError, RwbClient, RwbMfaRequired, new_cookie_jar
 from .const import (
     CONF_COST_ENABLED,
     CONF_COST_GRID,
     CONF_COST_MUNICIPALITY,
     CONF_COST_PRODUCT,
     CONF_COST_SURCHARGE,
+    CONF_SESSION,
     CONF_TOTP_SECRET,
     DEFAULT_COST_GRID,
     DEFAULT_COST_MUNICIPALITY,
@@ -51,16 +52,21 @@ def _client(
     # A throwaway session per flow — never the shared HA one, whose cookie jar is
     # global and would clobber a running coordinator's portal session.
     return RwbClient(
-        async_create_clientsession(hass), email, password, totp_secret=totp_secret
+        async_create_clientsession(hass, cookie_jar=new_cookie_jar()),
+        email,
+        password,
+        totp_secret=totp_secret,
     )
 
 
 async def _validate(
     hass: HomeAssistant, email: str, password: str, totp_secret: str | None = None
-) -> None:
+) -> dict[str, str]:
+    """Log in and return the portal session, for the entry to reuse."""
     client = _client(hass, email, password, totp_secret)
     await client.login()
     await client.discover()
+    return client.export_session()
 
 
 class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -78,7 +84,7 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             password = user_input["password"]
             totp_secret = (user_input.get(CONF_TOTP_SECRET) or "").strip() or None
             try:
-                await _validate(self.hass, email, password, totp_secret)
+                session = await _validate(self.hass, email, password, totp_secret)
             except RwbMfaRequired:
                 self._email, self._password, self._totp_secret = (
                     email,
@@ -93,7 +99,7 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected validate error")
                 errors["base"] = "unknown"
             else:
-                return await self._finish(email, password, totp_secret)
+                return await self._finish(email, password, totp_secret, session)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors
@@ -123,20 +129,28 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("MFA step failed")
                 errors["base"] = "unknown"
             else:
-                return await self._finish(self._email, self._password, totp_secret)
+                return await self._finish(
+                    self._email, self._password, totp_secret, client.export_session()
+                )
 
         return self.async_show_form(
             step_id="mfa", data_schema=STEP_MFA_SCHEMA, errors=errors
         )
 
-    async def _finish(self, email: str, password: str, totp_secret: str | None):
+    async def _finish(
+        self,
+        email: str,
+        password: str,
+        totp_secret: str | None,
+        session: dict[str, str] | None = None,
+    ):
         """Create the entry, or update the existing one when re-authenticating.
 
         A reauth flow must never call _abort_if_unique_id_configured: the entry it is
         repairing already holds this unique id, so the flow would abort with
         "already_configured" and leave the entry broken forever.
         """
-        data = _entry_data(email, password, totp_secret)
+        data = _entry_data(email, password, totp_secret, session)
         await self.async_set_unique_id(email.lower())
         if self.source == config_entries.SOURCE_REAUTH:
             self._abort_if_unique_id_mismatch(reason="wrong_account")
@@ -174,7 +188,7 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.get(CONF_TOTP_SECRET) or stored or ""
             ).strip() or None
             try:
-                await _validate(self.hass, email, password, totp_secret)
+                session = await _validate(self.hass, email, password, totp_secret)
             except RwbMfaRequired:
                 self._email, self._password, self._totp_secret = (
                     email,
@@ -188,7 +202,7 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Reauth failed")
                 errors["base"] = "unknown"
             else:
-                return await self._finish(email, password, totp_secret)
+                return await self._finish(email, password, totp_secret, session)
 
         return self.async_show_form(
             step_id="reauth_confirm", data_schema=STEP_USER_SCHEMA, errors=errors
@@ -259,8 +273,17 @@ class RwbOptionsFlow(config_entries.OptionsFlow):
         )
 
 
-def _entry_data(email: str, password: str, totp_secret: str | None) -> dict[str, str]:
-    data = {"email": email, "password": password}
+def _entry_data(
+    email: str,
+    password: str,
+    totp_secret: str | None,
+    session: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {"email": email, "password": password}
     if totp_secret:
         data[CONF_TOTP_SECRET] = totp_secret
+    if session:
+        # Carries the MFA challenge the user just answered into the entry, so setup
+        # does not immediately ask for another one-time code.
+        data[CONF_SESSION] = session
     return data
