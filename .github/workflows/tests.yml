@@ -1,0 +1,37 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  pytest:
+    name: Offline test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: "pip"
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install requirements
+        run: python3 -m pip install -r requirements-test.txt
+
+      # The integration marker hits the live RWB portal and needs a one-time
+      # MFA code, so CI runs everything except that.
+      - name: Run pytest
+        run: python3 -m pytest -m "not integration"

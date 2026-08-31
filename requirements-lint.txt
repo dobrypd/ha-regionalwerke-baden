@@ -1,0 +1,4 @@
+# Pinned: ruff's default rule set widens between releases, so an unpinned
+# version turns an unrelated ruff release into a red build. Dependabot does
+# not track this file; bump it deliberately and fix the fallout in one commit.
+ruff==0.16.5
