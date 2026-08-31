@@ -42,7 +42,7 @@ Drop-in for any coding agent. Read this before every task. Follows [agents.md](h
 
 - Install: `python3 -m venv .venv && .venv/bin/pip install -r requirements-test.txt -r requirements-lint.txt`. Pins core + `pytest-homeassistant-custom-component` **together** — unpinned, the plugin drags core to a beta.
 - Test (single): `.venv/bin/pytest tests/test_api.py -k test_name -xvs`
-- Test (all offline, the default): `.venv/bin/pytest -m "not integration"` (~4 s, 88 tests)
+- Test (all offline, the default): `.venv/bin/pytest -m "not integration"` (~5 s, 100 tests)
 - Test (live portal): `RWE_MFA_CODE=123456 .venv/bin/pytest -m integration -s` — needs `rwb_credentials.txt` and a fresh code (or `RWE_TOTP_SECRET` to be repeatable)
 - Lint: `ruff check .` and `ruff format . --check`, both green and enforced by CI. `ruff` is pinned in `requirements-lint.txt` because its **default** rule set widens between releases. There is still no ruff config — don't add one.
 
@@ -124,6 +124,12 @@ Drop-in for any coding agent. Read this before every task. Follows [agents.md](h
 - HA serves a custom integration's brand images from `brand/` **inside the integration directory** (`loader.py` `has_branding` tests `"brand" in self._top_level_files`), not from a repo-root folder and not from `home-assistant/brands`. `logo.png` falls back to `icon.png`, so shipping `icon.png` + `icon@2x.png` is enough (2026-08-31).
 - The tree was cleaned to zero ruff findings on 2026-08-31 (13 errors, 12 files reformatted) in three commits — import fix, `check` fixes, then `format` alone — so the mechanical reflow never hid a real change. The formatting commit was verified inert by comparing every file's AST against its parent (2026-08-31).
 - The `.venv/` survived the `rwe` → `rwb` directory rename with stale shebangs, so every console script died with "bad interpreter". A venv is not relocatable — recreate it after a move rather than working around it with `python -m` (recreated 2026-08-31).
+- aiohttp's *total* timeout raises a bare `asyncio.TimeoutError` (`helpers.py` `TimerContext`), which is **not** an `aiohttp.ClientError`. Every `except aiohttp.ClientError` needs `TimeoutError` beside it, or the timeout escapes the caller's `except RwbError` (2026-08-31).
+- A skipped week or meter must mark the historic run incomplete. Draining the loop with every week failing and still saving `done: True` left the entry with no history and no retry — recoverable only by deleting the entry (2026-08-31).
+- `_direction` matches substrings, so any name containing `Lieferung` collided onto the active line's `statistic_id`. Reactive lines (`Blind …`) are excluded explicitly; a colliding id silently doubles consumption (2026-08-31).
+- Only `RwbTariffUnavailable` (the 404) is a permanent answer worth caching. Caching every `RwbTariffError` disabled cost for the year on one 502 until restart (2026-08-31).
+- Reauth writes `entry.data`, but `_totp_secret_for` prefers `entry.options` whenever the key exists — and the options flow always writes it, `""` included. A reauth secret must be written through to options too (2026-08-31).
+- `conftest`'s fake-portal route bodies may be async, which is how the timeout tests make a real client hit a real timeout without mocking the HTTP layer (2026-08-31).
 - Verified live 2026-08-30 against the real portal: discovery keys unchanged, `day2` = 96 points `unit=kwh` matching the portal's own aggregate, `week2` = 672, history starts `2023-01-02` and 2022 is empty — `HISTORIC_EARLIEST_FALLBACK` is correct.
 
 ---
