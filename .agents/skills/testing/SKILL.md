@@ -24,9 +24,9 @@ markers =
 
 ```python
 # tests/conftest.py — the fixtures that matter
-custom_integration   # wraps enable_custom_integrations; opt-in, not autouse
-portal               # real aiohttp server + monkeypatched api.BASE_URL; needs socket_enabled
-portal_client        # RwbClient wired to it, discovery pre-seeded
+custom_integration  # wraps enable_custom_integrations; opt-in, not autouse
+portal  # real aiohttp server + monkeypatched api.BASE_URL; needs socket_enabled
+portal_client  # RwbClient wired to it, discovery pre-seeded
 ```
 
 Fixture ordering rules that are not optional:
@@ -64,18 +64,25 @@ Keep `tests/fixtures/` honest: `objekte.json` (`99999` → `CH999…`), `messlin
 ## Patterns to copy
 
 ```python
-@pytest.mark.parametrize("raw,expected", [
-    ("JBSW Y3DP EHPK 3PX", "JBSWY3DPEHPK3PX"),
-    ("otpauth://totp/RWB?secret=JBSWY3DPEHPK3PX&issuer=RWB", "JBSWY3DPEHPK3PX"),
-    ("jbsw-y3dp-ehpk-3px", "JBSWY3DPEHPK3PX"),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("JBSW Y3DP EHPK 3PX", "JBSWY3DPEHPK3PX"),
+        ("otpauth://totp/RWB?secret=JBSWY3DPEHPK3PX&issuer=RWB", "JBSWY3DPEHPK3PX"),
+        ("jbsw-y3dp-ehpk-3px", "JBSWY3DPEHPK3PX"),
+    ],
+)
 def test_normalize_totp_secret(raw, expected):
     assert _normalize_totp_secret(raw) == expected
 
-async def test_historic_resume(recorder_mock, hass, custom_integration, rwb_portal, hass_storage):
+
+async def test_historic_resume(
+    recorder_mock, hass, custom_integration, rwb_portal, hass_storage
+):
     # recorder_mock BEFORE hass; cursors are per meteringcode; no cumulatives are stored
     hass_storage[f"{DOMAIN}_historic_e1"] = {
-        "version": 1, "key": f"{DOMAIN}_historic_e1",
+        "version": 1,
+        "key": f"{DOMAIN}_historic_e1",
         "data": {"done": False, "cursors": {MCODE: "2024-01-08"}},
     }
     ...

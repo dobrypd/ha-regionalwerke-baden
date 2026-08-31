@@ -11,7 +11,7 @@
 **Pyramid for this repo:** pure unit (`tests/test_api.py` parsing/normalization — no `hass`), HTTP-surface tests against a **real local aiohttp server**, coordinator/config-flow tests against a **real recorder** (`recorder_mock`), and `tests/test_live_integration.py` marked `integration` for the live portal. CI runs `pytest -m "not integration"`; never hit the live portal there.
 
 **Stack (from web + HA ecosystem):**
-- `pytest` + `pytest-asyncio` with `asyncio_mode = auto` in `pytest.ini`. `pytest-homeassistant-custom-component` **pinned to the exact core version you deploy** (see `RULES.md` §3) — unpinned it drags core to a beta.
+- `pytest` + `pytest-asyncio` with `asyncio_mode = auto` in `pytest.ini`. `pytest-homeassistant-custom-component` **pinned to the exact core version you deploy** (see "Pin the test stack to the deployment target" in `RULES.md`) — unpinned it drags core to a beta.
 - `conftest.py` provides `custom_integration` (wrapping `enable_custom_integrations`, opt-in rather than autouse so pure-parsing tests stay fast), plus the `portal` / `portal_client` fixtures. `portal` needs `socket_enabled` — phcc blocks sockets by default.
 - `MockConfigEntry(domain=DOMAIN, data={email,password}, options={totp_secret}, entry_id="test")` + `entry.add_to_hass(hass)` before `async_setup_entry`. Don't stub `ConfigEntry` by hand.
 

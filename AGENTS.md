@@ -12,7 +12,7 @@ Drop-in for any coding agent. Read this before every task. Follows [agents.md](h
 2. **One layer per commit.** History is 8 commits `scaffold→api→config→coordinator→sensor→test→ci→docs`. Don't mix layers in one commit.
 3. **Authorship is the maintainer's.** Commits use whatever `git config user.name` / `user.email` is already set locally — read it, never hard-code or invent an identity. Never add `Co-authored-by`, AI attribution, or tool trailers unless explicitly requested.
 4. **Privacy.** This repository is intended to be published. No real portal HTML, metering IDs, or credentials — fixtures use `99999`/`CH999…`/`10001`/`10002` only. No personal data of the maintainer either: no real name, no personal email address, no home address, in any tracked file or commit message. Two deliberate exceptions: the GitHub handle `@dobrypd` (HACS requires it in `manifest.json` `codeowners`, and it is already public) and the copyright line in `LICENSE`, where the maintainer's real name is legally load-bearing. Do not "clean up" either.
-5. **Verify, don't guess.** Run the code/tests before claiming done. For anything HA-side, read the installed `homeassistant` source in `.venv/` or write a test against the real recorder — the contracts in [.agents/rules/RULES.md](.agents/rules/RULES.md) §2 all fail silently.
+5. **Verify, don't guess.** Run the code/tests before claiming done. For anything HA-side, read the installed `homeassistant` source in `.venv/` or write a test against the real recorder — the contracts under "Verified Home Assistant contracts" in [.agents/rules/RULES.md](.agents/rules/RULES.md) all fail silently.
 
 ---
 

@@ -2,7 +2,7 @@
 
 > Companion to `SKILLS.md`. Load on every diff. Check each gate — request changes if violated.
 >
-> **Line anchors below are indicative, not authoritative** — they were accurate at one commit and drift. Grep for the symbol, don't trust the number. The HA-side contracts each gate depends on are recorded, with what breaks when they are violated, in [`.agents/rules/RULES.md`](../../rules/RULES.md) §2.
+> **Line anchors below are indicative, not authoritative** — they were accurate at one commit and drift. Grep for the symbol, don't trust the number. The HA-side contracts each gate depends on are recorded, with what breaks when they are violated, under "Verified Home Assistant contracts" in [`.agents/rules/RULES.md`](../../rules/RULES.md).
 
 ## 1. MFA / TOTP
 
