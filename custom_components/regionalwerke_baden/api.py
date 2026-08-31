@@ -194,12 +194,16 @@ class RwbClient:
     # -- low level --
 
     async def _get(self, path: str, **kwargs: Any) -> ClientResponse:
+        # TimeoutError is caught alongside ClientError because aiohttp's *total*
+        # timeout raises a bare asyncio.TimeoutError, which is not a ClientError.
+        # Uncaught, it escaped the callers' `except RwbError` and aborted a whole
+        # historic run, or failed the energy poll over a slow price lookup.
         url = f"{BASE_URL}{path}" if path.startswith("/") else path
         kwargs.setdefault("timeout", REQUEST_TIMEOUT)
         try:
             resp = await self._session.get(url, **kwargs)
-        except aiohttp.ClientError as err:
-            raise RwbError(f"Network error GET {path}: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise RwbError(f"Network error GET {path}: {err!r}") from err
         return resp
 
     async def _post(
@@ -209,8 +213,8 @@ class RwbClient:
         kwargs.setdefault("timeout", REQUEST_TIMEOUT)
         try:
             resp = await self._session.post(url, data=data, **kwargs)
-        except aiohttp.ClientError as err:
-            raise RwbError(f"Network error POST {path}: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise RwbError(f"Network error POST {path}: {err!r}") from err
         return resp
 
     # -- auth --
@@ -406,6 +410,14 @@ class RwbClient:
         intervals: list[dict[str, str]] = cd.get("intervals") or []
         datasets = cd.get("datasets") or []
         unit = (cd.get("unit") or "").lower()
+        if unit not in ("kw", "kwh"):
+            # Anything else is taken at face value below. Say so once per payload:
+            # a silent unit change would import years of history at 4x with no trace.
+            _LOGGER.warning(
+                "Unexpected energy unit %r for messlinie %s; treating as kWh",
+                unit,
+                messlinie_id,
+            )
         if not intervals or not datasets:
             return []
         if messlinie_id is None:
@@ -508,8 +520,8 @@ async def async_fetch_tariffs(
     url = f"{TARIFF_BASE_URL}{TARIFF_PATH_TEMPLATE.format(year=year)}"
     try:
         resp = await session.get(url, timeout=REQUEST_TIMEOUT)
-    except aiohttp.ClientError as err:
-        raise RwbTariffError(f"Network error fetching {year} tariffs: {err}") from err
+    except (aiohttp.ClientError, TimeoutError) as err:
+        raise RwbTariffError(f"Network error fetching {year} tariffs: {err!r}") from err
     if resp.status == 404:
         raise RwbTariffUnavailable(f"No tariff file published for {year}")
     if resp.status >= 400:
