@@ -47,6 +47,7 @@ from .const import (
     CONF_COST_MUNICIPALITY,
     CONF_COST_PRODUCT,
     CONF_COST_SURCHARGE,
+    CONF_SESSION,
     CONF_TOTP_SECRET,
     DEFAULT_COST_GRID,
     DEFAULT_COST_MUNICIPALITY,
@@ -179,8 +180,10 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _ensure_session(self) -> None:
         """Log in / re-login as needed. Caller must hold _portal_lock."""
         if not self._discovered:
-            await self._client.login()
-            await self._client.discover()
+            if not await self._resume_stored_session():
+                await self._client.login()
+                await self._client.discover()
+                self._save_session()
             self._discovered = True
             return
         try:
@@ -189,6 +192,38 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.info("Session expired, re-login")
             await self._client.login()
             await self._client.discover()
+            self._save_session()
+
+    async def _resume_stored_session(self) -> bool:
+        """Adopt the portal session the config flow established, if it still works.
+
+        A manual-MFA account cannot log in unattended: the one-time code was spent
+        during the config flow. Logging in again here asked for a second code the
+        user had no way to supply, so setup failed with "MFA code required" and
+        re-authenticating just repeated the cycle. Reusing that session is what
+        makes a manual-MFA account work at all, and it survives restarts.
+        """
+        if not (stored := self.entry.data.get(CONF_SESSION)):
+            return False
+        self._client.load_session(stored)
+        try:
+            await self._client.ensure_authenticated()
+            await self._client.discover()
+        except RwbError as err:
+            _LOGGER.info(
+                "Stored portal session is no longer usable (%s), logging in", err
+            )
+            return False
+        _LOGGER.debug("Resumed the stored portal session")
+        return True
+
+    def _save_session(self) -> None:
+        """Persist the current portal session so a restart does not need a new code."""
+        cookies = self._client.export_session()
+        if cookies and cookies != self.entry.data.get(CONF_SESSION):
+            self.hass.config_entries.async_update_entry(
+                self.entry, data={**self.entry.data, CONF_SESSION: cookies}
+            )
 
     # -- recent (daily) --
 
