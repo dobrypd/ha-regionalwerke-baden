@@ -1,0 +1,28 @@
+name: Feature request
+description: Something the integration should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things are out of scope by design, so please don't open a request for them:
+
+        - **Live or sub-hourly data.** The portal publishes yesterday's load profile
+          and nothing sooner. Live readings need the meter's own local interface.
+        - **Priced feed-in.** Compensation is re-set quarterly by the BFE and is not
+          in the published tariff file, so any number here would be invented.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve
+      description: What you are trying to do that you currently cannot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+    validations:
+      required: false

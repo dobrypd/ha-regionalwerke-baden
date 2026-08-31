@@ -52,7 +52,7 @@ Drop-in for any coding agent. Read this before every task. Follows [agents.md](h
 
 - Source: `custom_components/regionalwerke_baden/{const.py,manifest.json,__init__.py,api.py,config_flow.py,coordinator.py,sensor.py,strings.json,translations/{en,de,pl}.json}`
 - Brand: `custom_components/regionalwerke_baden/brand/{icon.png,icon@2x.png}` — 256/512 px, served by HA itself; there is no entry in `home-assistant/brands`.
-- CI: `.github/workflows/{validate.yml,tests.yml,lint.yml}` (hassfest + HACS, offline pytest, ruff) plus `requirements-lint.txt` and `.github/dependabot.yml`. Actions are pinned by commit SHA with a version comment — keep that form. Dependabot covers actions only: it must never bump `homeassistant` on its own, which is why `requirements-test.txt` is not listed.
+- CI: `.github/workflows/{validate.yml,tests.yml,lint.yml}` (hassfest + HACS, offline pytest, ruff) plus `requirements-lint.txt`, `.github/dependabot.yml` and `.github/ISSUE_TEMPLATE/`. Actions are pinned by commit SHA with a version comment — keep that form. Dependabot covers actions only: it must never bump `homeassistant` on its own, which is why `requirements-test.txt` is not listed.
 - Tests: `tests/{conftest.py,test_api.py,test_config_flow.py,test_coordinator.py,test_translations.py,test_live_integration.py,fixtures/*}` + `pytest.ini`, `requirements-test.txt`. There is no `tests/fakes/`; the shared fake is the `portal` fixture in `conftest.py`.
 - Helpers: `.agents/architecture/PRINCIPLES.md`, `.agents/skills/{testing,review,design}/SKILL.md`, `.agents/rules/RULES.md`
 - Do not modify: `.storage/` (HA runtime), `__pycache__/`, `.venv/`.

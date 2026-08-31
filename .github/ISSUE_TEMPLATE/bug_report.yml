@@ -1,0 +1,76 @@
+name: Bug report
+description: Something the integration does wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you paste anything:** portal responses and debug logs contain your
+        metering code, name and address. Scrub them. A metering code can be replaced
+        with `CH999…` throughout — the report stays just as useful.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About. The integration requires 2026.8.0 or newer.
+      placeholder: "2026.8.3"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      description: The version HACS shows, or the `version` in `manifest.json`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Setup or login
+        - Two-factor / TOTP
+        - Historic import (the one-off backfill)
+        - Daily update
+        - Energy Dashboard / statistics
+        - Cost tracking
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mfa
+    attributes:
+      label: Does your portal account have MFA enabled?
+      options:
+        - "No"
+        - "Yes — I enter a code manually"
+        - "Yes — I stored a TOTP secret"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Add to `configuration.yaml`, restart, and reproduce:
+        ```yaml
+        logger:
+          logs:
+            custom_components.regionalwerke_baden: debug
+        ```
+        Scrub the metering code, name and address before pasting.
+      render: text

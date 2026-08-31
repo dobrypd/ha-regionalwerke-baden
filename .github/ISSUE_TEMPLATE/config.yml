@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io/
+    about: Questions about Home Assistant itself, the Energy Dashboard, or statistics.
+  - name: Regionalwerke AG Baden
+    url: https://www.regionalwerke.ch/
+    about: Questions about your contract, your tariff, or the meter itself. This is an unofficial integration; Regionalwerke does not support it.
