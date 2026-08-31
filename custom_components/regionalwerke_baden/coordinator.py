@@ -35,6 +35,7 @@ from .api import (
     RwbError,
     RwbMfaRequired,
     RwbTariffError,
+    RwbTariffUnavailable,
     SeriesPoint,
     async_fetch_tariffs,
     parse_tariff_rate,
@@ -107,6 +108,7 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._run_sums: dict[str, float] = {}
         self._import_task: asyncio.Task | None = None
         self._cost = _cost_options(entry)
+        _warn_on_currency(hass, self._cost["enabled"])
         # CHF/kWh per calendar year — the tariff file is a per-year document, and the
         # historic import spans years for which none was ever published. None means
         # "asked and there is nothing", so it is not retried for every week.
@@ -134,6 +136,7 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Re-read the cost options and drop the cached rates: a changed product,
         # municipality or surcharge must not keep billing at the old rate.
         self._cost = _cost_options(entry)
+        _warn_on_currency(self.hass, self._cost["enabled"])
         self._tariff_rates.clear()
         _LOGGER.info(
             "Config entry updated (TOTP secret: %s, cost tracking: %s)",
@@ -251,6 +254,11 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         end = dt_util.now().date() - dt.timedelta(days=1)
+        # Set by any skipped meter or failed week. The run is only "done" if it
+        # actually imported everything: a portal outage used to drain the loop
+        # with every week failing and still save done=True, leaving the entry
+        # permanently empty and never retried.
+        incomplete = False
 
         for obj in objekte:
             oid, mcode = obj["id"], obj["meteringcode"]
@@ -258,6 +266,11 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._client.get_messlinien(oid, mcode, end, zeitraum=ZEITRAUM_KW)
             )
             if not ml_map:
+                _LOGGER.warning(
+                    "No messlinien for %s; leaving its history for the next run",
+                    mcode,
+                )
+                incomplete = True
                 continue
 
             if (saved := cursors.get(mcode)) is not None:
@@ -290,6 +303,7 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         _LOGGER.warning(
                             "Historic week %s %s failed: %s", cur, ml_id, err
                         )
+                        incomplete = True
                         continue
 
                     points = [
@@ -306,6 +320,15 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     cursors[mcode] = cur.isoformat()
                     await self._store.async_save({"done": False, "cursors": cursors})
                 await asyncio.sleep(HISTORIC_THROTTLE)
+
+        if incomplete:
+            # Leave done=False so the next daily run resumes from the saved
+            # cursors instead of declaring a half-imported history complete.
+            await self._store.async_save({"done": False, "cursors": cursors})
+            _LOGGER.warning(
+                "Historic import finished with gaps; it will resume on the next run"
+            )
+            return
 
         await self._store.async_save(
             {"done": True, "cursors": cursors, "at": dt_util.utcnow().isoformat()}
@@ -559,9 +582,15 @@ class RwbCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 municipality=self._cost["municipality"],
                 surcharge_rp=self._cost["surcharge"],
             )
+        except RwbTariffUnavailable as err:
+            # No file published for this year. That will not change today.
+            _LOGGER.warning("No cost for %d — %s", year, err)
         except RwbTariffError as err:
             # Never fail the energy import over a price: the kWh are the point.
-            _LOGGER.warning("No cost for %d — %s", year, err)
+            # Not cached — a 502 or a dropped connection is worth retrying, and
+            # caching it disabled cost for the whole year until HA restarted.
+            _LOGGER.warning("No cost for %d — %s (will retry)", year, err)
+            return None
         else:
             rate = parsed.chf_per_kwh
             _LOGGER.info(
@@ -619,6 +648,23 @@ def _totp_secret_for(entry: ConfigEntry) -> str | None:
     return entry.data.get(CONF_TOTP_SECRET) or None
 
 
+def _warn_on_currency(hass: HomeAssistant, enabled: bool) -> None:
+    """The tariff file is in CHF, so any other instance currency mislabels the cost.
+
+    HA's own validation only checks that the statistic's unit equals the configured
+    currency, so an instance left on the EUR default silently shows CHF amounts
+    under a euro sign.
+    """
+    if enabled and hass.config.currency != "CHF":
+        _LOGGER.warning(
+            "Cost tracking is on but the Home Assistant currency is %s. Tariffs are "
+            "published in CHF, so the cost statistic will carry CHF amounts labelled "
+            "%s — set the currency to CHF",
+            hass.config.currency,
+            hass.config.currency,
+        )
+
+
 def _cost_options(entry: ConfigEntry) -> dict[str, Any]:
     """Cost settings, all from Options — there is no cost setting in the setup flow."""
     opts = entry.options
@@ -633,6 +679,11 @@ def _cost_options(entry: ConfigEntry) -> dict[str, Any]:
 
 def _direction(ml_name: str, ml_id: str) -> str:
     """Map a messlinie to the Energy Dashboard direction it belongs to."""
+    if "Blind" in ml_name:
+        # Reactive energy. Without this it matches "Lieferung" below and gets the
+        # same statistic_id as the active line, so both are summed into one series
+        # and consumption reads roughly double.
+        return ml_id
     if "Rück" in ml_name:
         # HA calls this "Return to grid" (stat_energy_to); "production" is the Solar
         # source, and naming it that invites wiring it there and double-counting.
