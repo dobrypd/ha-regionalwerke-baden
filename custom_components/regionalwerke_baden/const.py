@@ -2,6 +2,9 @@
 
 DOMAIN = "regionalwerke_baden"
 CONF_TOTP_SECRET = "totp_secret"
+# The portal session established when the user answered the MFA challenge. Without
+# it the coordinator logs in again on its own and needs a second one-time code.
+CONF_SESSION = "session_cookies"
 
 BASE_URL = "https://www.rwb-kundenportal.ch"
 LOGIN_PATH = "/login"

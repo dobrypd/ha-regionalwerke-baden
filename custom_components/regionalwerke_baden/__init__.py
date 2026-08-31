@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
+from .api import new_cookie_jar
 from .const import DOMAIN
 from .coordinator import RwbCoordinator
 
@@ -21,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # of HA, so a second RWB account — or a config flow running beside the coordinator
     # — would silently overwrite this entry's PHPSESSID.
     # async_create_clientsession already registers detach() on this entry's unload.
-    session = async_create_clientsession(hass)
+    session = async_create_clientsession(hass, cookie_jar=new_cookie_jar())
 
     coordinator = RwbCoordinator(hass, entry, session)
     await coordinator.async_config_entry_first_refresh()

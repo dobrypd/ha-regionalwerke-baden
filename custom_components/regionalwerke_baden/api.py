@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 
 import aiohttp
 from aiohttp import ClientResponse
+from yarl import URL
 
 from .const import (
     BASE_URL,
@@ -152,8 +153,19 @@ def _normalize_totp_secret(raw: str) -> str:
     return s
 
 
+def new_cookie_jar() -> aiohttp.CookieJar:
+    """The cookie jar a portal session needs.
+
+    `unsafe=True` only relaxes aiohttp's refusal to keep cookies for IP-address
+    hosts. The portal is a domain, so this changes nothing against the real site —
+    but the test server is an IP, and without it the PHPSESSID is silently dropped
+    and no test can cover reusing a session.
+    """
+    return aiohttp.CookieJar(unsafe=True)
+
+
 class RwbClient:
-    """Thin aiohttp wrapper with cookie jar persistence."""
+    """Thin aiohttp wrapper over the portal."""
 
     def __init__(
         self,
@@ -169,6 +181,21 @@ class RwbClient:
         if self._totp_secret == "":
             self._totp_secret = None
         self._urls: dict[str, str] | None = None
+
+    def export_session(self) -> dict[str, str]:
+        """The portal cookies that make this client authenticated (PHPSESSID).
+
+        A one-time MFA code can only be spent once, so the session it buys has to
+        outlive the config flow that spent it — otherwise the coordinator logs in
+        again and asks for a second code that the user cannot produce.
+        """
+        jar = self._session.cookie_jar.filter_cookies(URL(BASE_URL))
+        return {name: morsel.value for name, morsel in jar.items()}
+
+    def load_session(self, cookies: dict[str, str] | None) -> None:
+        """Adopt cookies exported earlier, from this or a previous HA run."""
+        if cookies:
+            self._session.cookie_jar.update_cookies(cookies, URL(BASE_URL))
 
     @property
     def has_totp_secret(self) -> bool:
