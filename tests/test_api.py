@@ -1,5 +1,6 @@
 """RwbClient: parsing, normalization and the HTTP surface."""
 
+import asyncio
 import json
 import pathlib
 from datetime import date
@@ -427,3 +428,63 @@ async def test_a_year_with_no_published_file_is_its_own_error(portal):
     async with aiohttp.ClientSession() as session:
         with pytest.raises(RwbTariffUnavailable):
             await async_fetch_tariffs(session, 2019)
+
+
+async def test_a_timeout_becomes_rwberror(portal, monkeypatch):
+    """Regression: aiohttp's total timeout raises a bare asyncio.TimeoutError, which
+    is not an aiohttp.ClientError. It escaped _get entirely, so a slow portal aborted
+    a whole historic run instead of the caller skipping one week."""
+    import aiohttp
+
+    from custom_components.regionalwerke_baden import api
+
+    async def stall(_request):
+        await asyncio.sleep(1)
+        return "too late"
+
+    portal.set("/lastgangdaten", stall)
+    monkeypatch.setattr(api, "REQUEST_TIMEOUT", aiohttp.ClientTimeout(total=0.05))
+
+    async with aiohttp.ClientSession() as session:
+        client = api.RwbClient(session, "user@example.com", "pw")
+        with pytest.raises(api.RwbError):
+            await client._get("/lastgangdaten")
+
+
+async def test_a_tariff_timeout_becomes_a_tariff_error(portal, monkeypatch):
+    """Same gap on the tariff fetch, where an escape failed the whole energy poll
+    over a price lookup that is explicitly allowed to fail."""
+    import aiohttp
+
+    from custom_components.regionalwerke_baden import api
+
+    async def stall(_request):
+        await asyncio.sleep(1)
+        return "{}"
+
+    portal.set("/fileadmin/Strompreise_ElCom/Baden_tariffs_2026.json", stall)
+    monkeypatch.setattr(api, "REQUEST_TIMEOUT", aiohttp.ClientTimeout(total=0.05))
+
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(api.RwbTariffError):
+            await api.async_fetch_tariffs(session, 2026)
+
+
+def test_an_unexpected_unit_is_flagged(caplog):
+    """Anything that is not kw/kwh is taken at face value, so it has to be logged —
+    a silent unit change would re-import years of history at 4x."""
+    from custom_components.regionalwerke_baden.api import RwbClient
+
+    payload = {
+        "chartData": {
+            "unit": "MW",
+            "intervals": [{"from": "2026-01-01T00:00:00+01:00", "until": "x"}],
+            "datasets": [{"id": "10001", "data": ["1.0"]}],
+        }
+    }
+    with caplog.at_level("WARNING"):
+        points = RwbClient.normalize_to_kwh(payload, "10001")
+
+    assert len(points) == 1
+    assert points[0].value_kwh == 1.0  # unchanged, but not silently
+    assert "Unexpected energy unit" in caplog.text

@@ -8,7 +8,12 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.regionalwerke_baden.const import CONF_TOTP_SECRET, DOMAIN
+from custom_components.regionalwerke_baden.const import (
+    CONF_COST_ENABLED,
+    CONF_TOTP_SECRET,
+    DOMAIN,
+)
+from custom_components.regionalwerke_baden.coordinator import _totp_secret_for
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SECRET = "JBSWY3DPEHPK3PXP"
@@ -321,3 +326,34 @@ async def test_bad_totp_secret_reports_invalid_auth_not_unknown(
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
+
+
+async def test_reauth_secret_is_not_shadowed_by_options(
+    recorder_mock, hass, custom_integration, login_portal
+):
+    """Regression: the coordinator reads the secret from options whenever that key
+    exists, and the options flow always writes it — "" included. Reauth wrote only
+    to entry.data, so for anyone who had ever opened Options the secret supplied
+    while re-authenticating was ignored forever and MFA kept prompting."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="a@b.c",
+        data={"email": "a@b.c", "password": "old"},
+        # The state the options flow leaves behind after a save with no secret.
+        options={CONF_TOTP_SECRET: "", CONF_COST_ENABLED: True},
+    )
+    entry.add_to_hass(hass)
+    login_portal.set("/login", "<html>Willkommen</html>", method="POST")
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"email": "a@b.c", "password": "new", CONF_TOTP_SECRET: "JBSWY3DPEHPK3PXP"},
+    )
+    await hass.async_block_till_done()
+
+    assert result["reason"] == "reauth_successful"
+    # What the coordinator will actually use.
+    assert _totp_secret_for(entry) == "JBSWY3DPEHPK3PXP"
+    # Unrelated options survive the write-through.
+    assert entry.options[CONF_COST_ENABLED] is True

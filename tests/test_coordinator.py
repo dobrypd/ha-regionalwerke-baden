@@ -39,6 +39,7 @@ from custom_components.regionalwerke_baden.const import (
 )
 from custom_components.regionalwerke_baden.coordinator import (
     _statistic_id,
+    _to_monday,
     _totp_secret_for,
 )
 
@@ -60,7 +61,7 @@ HISTORY_DAYS = 21  # how far back the fake portal pretends to hold data
     ],
 )
 def test_statistic_id_is_valid_for_home_assistant(ml_name, expected_suffix):
-    """Regression: "{domain}:{METERINGCODE}:{direction}" had a second colon and
+    """Regression: "{domain}:{MCODE}:{direction}" had a second colon and
     uppercase, so async_add_external_statistics rejected every single push."""
     statistic_id = _statistic_id(MCODE, ml_name, "10001")
     assert valid_statistic_id(statistic_id), statistic_id
@@ -770,3 +771,133 @@ async def test_changing_the_product_in_options_reprices_the_next_run(
     assert await coordinator._rate_for_year(dt_util.now().year) == pytest.approx(
         EXPECTED_RATE - 0.003
     )
+
+
+# -- failure paths: the portal is down, and stays down --
+
+
+@pytest.mark.parametrize(
+    ("ml_name", "expected_suffix"),
+    [
+        ("Wirk Lieferung", "consumption"),
+        ("Wirk Rücklieferung", "return"),
+        # Reactive energy also contains "Lieferung". It used to take the active
+        # line's id, so both series were summed into one and consumption doubled.
+        ("Blind Lieferung", "10001"),
+        ("Blind Rücklieferung", "10001"),
+    ],
+)
+def test_reactive_lines_do_not_collide_with_the_active_ones(ml_name, expected_suffix):
+    stat_id = _statistic_id("CH999", ml_name, "10001")
+    assert stat_id.endswith(f"_{expected_suffix}")
+    if not ml_name.startswith("Wirk"):
+        assert stat_id != _statistic_id("CH999", "Wirk Lieferung", "10002")
+
+
+async def _historic_state(hass_storage) -> dict:
+    return hass_storage[f"{DOMAIN}_historic_edown"]["data"]
+
+
+async def test_a_failed_historic_import_is_not_recorded_as_done(
+    recorder_mock, hass: HomeAssistant, custom_integration, rwb_portal, hass_storage
+):
+    """Regression: every week failing made `wrote` stay False, so no cursor was
+    saved, the loop drained to yesterday, and the run still wrote done=True. The
+    entry kept no history at all and never tried again."""
+    await hass.config.async_set_time_zone("Europe/Zurich")
+    # Only the historic week2 chunks fail; the daily poll keeps working, so the
+    # entry sets up and the failure is isolated to the import. A non-JSON body is
+    # what _get_json turns into RwbError.
+    _, serve = rwb_portal.routes[("GET", "/lastgangdaten/getMessdaten")]
+
+    def week_chunks_are_down(request):
+        if request.query["zeitraum"].startswith("week"):
+            return "<html>upstream is down</html>"
+        return serve(request)
+
+    rwb_portal.set("/lastgangdaten/getMessdaten", week_chunks_are_down)
+
+    # Resume an import already in progress, so the run gets past _discover_earliest
+    # (which probes with week2 too) and into the week loop that used to swallow
+    # every failure and still finish.
+    resume_from = _to_monday(dt_util.now().date() - dt.timedelta(days=14))
+    hass_storage[f"{DOMAIN}_historic_edown"] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": f"{DOMAIN}_historic_edown",
+        "data": {"done": False, "cursors": {MCODE: resume_from.isoformat()}},
+    }
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"email": "user@example.com", "password": "pw"},
+        entry_id="edown",
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    state = await _historic_state(hass_storage)
+    assert state["done"] is False, "a run that imported nothing must not be 'done'"
+    # The cursor must not have advanced past weeks that were never imported.
+    assert state["cursors"][MCODE] == resume_from.isoformat()
+
+
+async def test_a_meter_without_messlinien_leaves_the_import_open(
+    recorder_mock, hass: HomeAssistant, custom_integration, rwb_portal, hass_storage
+):
+    """Same family: a meter whose getMesslinien came back empty was skipped, and the
+    run still declared the whole history complete."""
+    await hass.config.async_set_time_zone("Europe/Zurich")
+    rwb_portal.set("/lastgangdaten/getMesslinien", "{}")
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"email": "user@example.com", "password": "pw"},
+        entry_id="edown",
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    state = await _historic_state(hass_storage)
+    assert state["done"] is False
+
+
+async def test_a_transient_tariff_failure_is_retried(
+    recorder_mock, hass: HomeAssistant, custom_integration, tariff_portal, hass_storage
+):
+    """Regression: any tariff error was cached as "no price for this year", so a
+    single 502 disabled cost until Home Assistant restarted."""
+    year = dt_util.now().year
+    path = f"/fileadmin/Strompreise_ElCom/Baden_tariffs_{year}.json"
+    tariff_portal.set(path, "bad gateway", status=502)
+
+    await _setup_cost_entry(hass, hass_storage)
+    assert not await _cost_rows(hass), "a 502 should not have produced cost rows"
+
+    # The portal recovers; the next poll must price the energy rather than reuse
+    # a cached "no tariff" answer.
+    tariff_portal.set(path, (FIXTURES / "tariffs_2026.json").read_text())
+    coordinator = hass.data[DOMAIN]["ecost"]
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success
+
+    assert await _cost_rows(hass), "cost was never retried after the portal recovered"
+
+
+async def test_a_non_chf_currency_is_flagged(
+    recorder_mock,
+    hass: HomeAssistant,
+    custom_integration,
+    tariff_portal,
+    hass_storage,
+    caplog,
+):
+    """The tariff file is CHF and HA only checks the unit against the configured
+    currency, so EUR would silently label CHF amounts with a euro sign."""
+    hass.config.currency = "EUR"
+    with caplog.at_level("WARNING"):
+        await _setup_cost_entry(hass, hass_storage)
+
+    assert "currency is EUR" in caplog.text

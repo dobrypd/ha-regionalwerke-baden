@@ -1,5 +1,6 @@
 """Shared test fixtures."""
 
+import inspect
 import json
 import pathlib
 
@@ -84,6 +85,10 @@ async def portal(aiohttp_server, socket_enabled, monkeypatch):
         )
         if callable(body):
             body = body(request)
+            if inspect.isawaitable(body):
+                # An async body can await, which is the only way to make the real
+                # client hit a real timeout without mocking its HTTP stack.
+                body = await body
         return web.Response(status=status, text=body, content_type="text/html")
 
     app = web.Application()
