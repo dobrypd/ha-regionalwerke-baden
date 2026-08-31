@@ -34,6 +34,7 @@ from custom_components.regionalwerke_baden.const import (
     CONF_COST_ENABLED,
     CONF_COST_PRODUCT,
     CONF_COST_SURCHARGE,
+    CONF_SESSION,
     CONF_TOTP_SECRET,
     DOMAIN,
 )
@@ -901,3 +902,105 @@ async def test_a_non_chf_currency_is_flagged(
         await _setup_cost_entry(hass, hass_storage)
 
     assert "currency is EUR" in caplog.text
+
+
+# -- reusing the portal session established during the config flow --
+
+
+async def _setup_with_session(
+    hass: HomeAssistant, hass_storage, session: dict[str, str] | None
+) -> MockConfigEntry:
+    await hass.config.async_set_time_zone("Europe/Zurich")
+    data = {"email": "user@example.com", "password": "pw"}
+    if session is not None:
+        data[CONF_SESSION] = session
+    entry = MockConfigEntry(domain=DOMAIN, data=data, entry_id="esess")
+    entry.add_to_hass(hass)
+    hass_storage[f"{DOMAIN}_historic_esess"] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": f"{DOMAIN}_historic_esess",
+        "data": {"done": True},
+    }
+    ok = await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry, ok
+
+
+async def test_an_mfa_account_without_a_totp_secret_can_set_up(
+    recorder_mock, hass: HomeAssistant, custom_integration, rwb_portal, hass_storage
+):
+    """Regression, reported from a real deployment as
+    "Failed to set up: MFA required: MFA code required".
+
+    A one-time code is spent by the config flow. The coordinator then logged in
+    again on its own, hit the 2FA page, and raised ConfigEntryAuthFailed — asking
+    for a second code the user could not produce. Re-authenticating spent another
+    code and looped, so a manual-MFA account could never finish setup at all.
+    """
+    # This portal demands MFA on every fresh login, like the reporter's account.
+    rwb_portal.set(
+        "/login", '<form action="/2fa_check">Zugangscode</form>', method="POST"
+    )
+
+    _, ok = await _setup_with_session(
+        hass, hass_storage, {"PHPSESSID": rwb_portal.session_id}
+    )
+
+    assert ok, "setup must succeed on the session the config flow established"
+    assert rwb_portal.call_count("/login", "POST") == 0, (
+        "logging in again would demand a second one-time code"
+    )
+    assert rwb_portal.last_cookies("/lastgangdaten")["PHPSESSID"] == (
+        rwb_portal.session_id
+    )
+
+
+async def test_a_dead_stored_session_falls_back_to_logging_in(
+    recorder_mock, hass: HomeAssistant, custom_integration, rwb_portal, hass_storage
+):
+    """After ~30 days the PHPSESSID expires. A stale one must not wedge the entry:
+    an account that can log in unattended just logs in again."""
+    discovery = (FIXTURES / "lastgang_discovery.html").read_text()
+
+    def expired_for_the_old_cookie(request):
+        if request.cookies.get("PHPSESSID") == "STALE":
+            return '<form><input name="_username"></form>'
+        return discovery
+
+    rwb_portal.set("/lastgangdaten", expired_for_the_old_cookie)
+
+    _, ok = await _setup_with_session(hass, hass_storage, {"PHPSESSID": "STALE"})
+
+    assert ok
+    assert rwb_portal.call_count("/login", "POST") == 1, (
+        "a dead session should be replaced by a normal login"
+    )
+
+
+async def test_a_fresh_login_is_saved_for_the_next_restart(
+    recorder_mock, hass: HomeAssistant, custom_integration, rwb_portal, hass_storage
+):
+    """Whatever session the coordinator establishes is kept, so a restart reuses it
+    instead of needing another code."""
+    entry, ok = await _setup_with_session(hass, hass_storage, None)
+
+    assert ok
+    assert entry.data[CONF_SESSION] == {"PHPSESSID": rwb_portal.session_id}
+
+
+async def test_without_a_stored_session_the_mfa_account_still_cannot_set_up(
+    recorder_mock, hass: HomeAssistant, custom_integration, rwb_portal, hass_storage
+):
+    """The other half of the regression above: with no session to resume, the
+    coordinator has to log in, the portal demands a code nobody can supply, and
+    setup fails exactly as it did on the reporter's box. That contrast is what
+    shows the stored session — not something else — is what fixes it."""
+    rwb_portal.set(
+        "/login", '<form action="/2fa_check">Zugangscode</form>', method="POST"
+    )
+
+    _, ok = await _setup_with_session(hass, hass_storage, None)
+
+    assert not ok
+    assert rwb_portal.call_count("/login", "POST") == 1

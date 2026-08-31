@@ -39,6 +39,9 @@ class FakePortal:
         self.routes: dict[tuple[str, str], tuple[int, str]] = {}
         self.calls: list[dict] = []
         self.base = ""
+        # The real portal keeps you logged in with a PHPSESSID cookie. Without one
+        # here, nothing could exercise reusing a session across a config flow.
+        self.session_id = "SESSION-1"
 
     def set(self, path: str, body, status: int = 200, method: str = "GET") -> None:
         """body is a string, or a callable taking the aiohttp request and returning one."""
@@ -60,6 +63,9 @@ class FakePortal:
     def call_count(self, path: str, method: str | None = None) -> int:
         return len(self._calls_for(path, method))
 
+    def last_cookies(self, path: str) -> dict[str, str]:
+        return self._calls_for(path)[-1]["cookies"]
+
 
 @pytest.fixture
 async def portal(aiohttp_server, socket_enabled, monkeypatch):
@@ -78,6 +84,7 @@ async def portal(aiohttp_server, socket_enabled, monkeypatch):
                 "method": request.method,
                 "query": dict(request.query),
                 "form": form,
+                "cookies": dict(request.cookies),
             }
         )
         status, body = fake.routes.get(
@@ -89,7 +96,9 @@ async def portal(aiohttp_server, socket_enabled, monkeypatch):
                 # An async body can await, which is the only way to make the real
                 # client hit a real timeout without mocking its HTTP stack.
                 body = await body
-        return web.Response(status=status, text=body, content_type="text/html")
+        resp = web.Response(status=status, text=body, content_type="text/html")
+        resp.set_cookie("PHPSESSID", fake.session_id)
+        return resp
 
     app = web.Application()
     app.router.add_route("*", "/{tail:.*}", handler)

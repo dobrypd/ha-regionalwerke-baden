@@ -10,6 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.regionalwerke_baden.const import (
     CONF_COST_ENABLED,
+    CONF_SESSION,
     CONF_TOTP_SECRET,
     DOMAIN,
 )
@@ -51,7 +52,10 @@ async def test_non_mfa_account_creates_entry(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "User@Example.com"
-    assert result["data"] == {"email": "User@Example.com", "password": "pw"}
+    assert result["data"]["email"] == "User@Example.com"
+    assert result["data"]["password"] == "pw"
+    # The established portal session rides along so setup need not log in again.
+    assert result["data"][CONF_SESSION] == {"PHPSESSID": login_portal.session_id}
     assert CONF_TOTP_SECRET not in result["data"]
 
 
@@ -92,7 +96,9 @@ async def test_mfa_account_manual_code(
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {"email": "a@b.c", "password": "pw"}
+    assert result["data"]["email"] == "a@b.c"
+    assert result["data"]["password"] == "pw"
+    assert result["data"][CONF_SESSION] == {"PHPSESSID": login_portal.session_id}
     assert login_portal.last_form("/2fa_check")["_auth_code"] == "123456"
 
 
@@ -357,3 +363,35 @@ async def test_reauth_secret_is_not_shadowed_by_options(
     assert _totp_secret_for(entry) == "JBSWY3DPEHPK3PXP"
     # Unrelated options survive the write-through.
     assert entry.options[CONF_COST_ENABLED] is True
+
+
+async def test_the_mfa_session_is_stored_on_the_entry(
+    recorder_mock, hass, custom_integration, login_portal
+):
+    """Regression: a one-time code can only be spent once, and the config flow spent
+    it in a throwaway session. The entry kept only the credentials, so setup logged
+    in again, hit the 2FA page and failed with "MFA code required" — a code the user
+    had no way to supply. Re-authenticating just repeated the cycle."""
+    login_portal.set(
+        "/login", '<form action="/2fa_check">Zugangscode</form>', method="POST"
+    )
+    login_portal.set("/2fa_check", "<html>Willkommen</html>", method="POST")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"email": "a@b.c", "password": "pw"}
+    )
+    assert result["step_id"] == "mfa"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": "123456"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    session = result["data"][CONF_SESSION]
+    assert session["PHPSESSID"] == login_portal.session_id, (
+        "the session that answered the MFA challenge must reach the entry"
+    )
+    # And no secret was invented along the way.
+    assert CONF_TOTP_SECRET not in result["data"]
