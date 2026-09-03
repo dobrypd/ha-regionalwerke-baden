@@ -27,16 +27,31 @@
       },
       "reauth_confirm": {
         "title": "Re-authenticate Regionalwerke Baden",
-        "description": "The portal session has expired. Re-enter your password. If you use MFA and want automatic re-login, include your TOTP secret.",
+        "description": "The portal session has expired. Enter the current 6-digit code, or paste your TOTP secret to enable automatic future logins. Your saved email and password will be used.",
         "data": {
-          "email": "Email",
-          "password": "Password",
+          "code": "Code (optional)",
           "totp_secret": "TOTP secret (optional)"
+        },
+        "data_description": {
+          "code": "The 6-digit code currently shown by your authenticator app.",
+          "totp_secret": "Base32 string or otpauth:// URI. This replaces any previously saved secret."
+        }
+      },
+      "reauth_password": {
+        "title": "Update password",
+        "description": "The saved credentials were rejected. Enter the current password for this account, then continue with two-factor authentication.",
+        "data": {
+          "password": "Password"
         }
       }
     },
     "error": {
+      "choose_one_auth_method": "Enter either the current two-factor code or a TOTP secret, not both",
+      "code_or_secret_required": "Enter a two-factor code or TOTP secret",
       "invalid_auth": "Invalid credentials or two-factor code",
+      "invalid_code": "The current two-factor code was rejected",
+      "invalid_password": "The password was rejected",
+      "invalid_totp": "The TOTP secret is invalid or generated a code the portal rejected",
       "unknown": "Unexpected error"
     },
     "abort": {
