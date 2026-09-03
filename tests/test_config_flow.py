@@ -33,6 +33,10 @@ async def _start(hass):
     )
 
 
+def _schema_keys(result) -> set[str]:
+    return {key.schema for key in result["data_schema"].schema}
+
+
 async def test_form_shown(recorder_mock, hass, custom_integration, login_portal):
     result = await _start(hass)
     assert result["type"] is FlowResultType.FORM
@@ -161,26 +165,55 @@ async def test_duplicate_account_aborts(
     assert result["reason"] == "already_configured"
 
 
-async def test_reauth_updates_the_password(
+async def test_reauth_code_only_uses_stored_credentials_and_persists_session(
     recorder_mock, hass, custom_integration, login_portal
 ):
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id="a@b.c", data={"email": "a@b.c", "password": "old"}
+        domain=DOMAIN,
+        unique_id="a@b.c",
+        data={
+            "email": "a@b.c",
+            "password": "stored-password",
+            CONF_TOTP_SECRET: SECRET,
+        },
     )
     entry.add_to_hass(hass)
-    login_portal.set("/login", "<html>Willkommen</html>", method="POST")
+    login_portal.set(
+        "/login", '<form action="/2fa_check">Zugangscode</form>', method="POST"
+    )
+
+    def accept_manual_code(request):
+        submitted = login_portal.calls[-1]["form"]["_auth_code"]
+        return (
+            "<html>Willkommen</html>"
+            if submitted == "123456"
+            else "Zugangscode ungültig"
+        )
+
+    login_portal.set("/2fa_check", accept_manual_code, method="POST")
 
     result = await entry.start_reauth_flow(hass)
     assert result["step_id"] == "reauth_confirm"
+    assert _schema_keys(result) == {"code", CONF_TOTP_SECRET}
+    assert login_portal.call_count("/login", "POST") == 0
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"email": "a@b.c", "password": "new"}
+        result["flow_id"], {"code": "123456"}
     )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
-    assert entry.data["password"] == "new"
+    assert login_portal.last_form("/login") == {
+        "_username": "a@b.c",
+        "_password": "stored-password",
+        "_csrf_token": "tok",
+    }
+    assert login_portal.last_form("/2fa_check")["_auth_code"] == "123456"
+    assert login_portal.call_count("/2fa_check", "POST") == 1
+    assert entry.data["password"] == "stored-password"
+    assert entry.data[CONF_TOTP_SECRET] == SECRET
+    assert entry.data[CONF_SESSION] == {"PHPSESSID": login_portal.session_id}
 
 
 async def test_options_flow_sets_and_clears_the_secret(
@@ -214,60 +247,162 @@ async def test_options_flow_sets_and_clears_the_secret(
     assert _totp_secret_for(entry) is None
 
 
-async def test_reauth_completes_for_an_mfa_account(
-    recorder_mock, hass, custom_integration, login_portal
+@pytest.mark.parametrize(
+    "user_input",
+    [{"code": "123456"}, {CONF_TOTP_SECRET: SECRET}],
+    ids=["one_time_code", "replacement_totp_secret"],
+)
+async def test_reauth_bad_stored_password_asks_only_for_password_then_reuses_mfa(
+    recorder_mock, hass, custom_integration, login_portal, user_input
 ):
-    """Regression: the MFA step aborted a reauth with `already_configured`.
-
-    async_step_mfa called _abort_if_unique_id_configured unconditionally, but the
-    entry being re-authenticated already holds that unique id — so an MFA user could
-    enter a valid code and still never repair the entry.
-    """
     entry = MockConfigEntry(
         domain=DOMAIN, unique_id="a@b.c", data={"email": "a@b.c", "password": "old"}
+    )
+    entry.add_to_hass(hass)
+
+    def login(request):
+        if login_portal.calls[-1]["form"]["_password"] == "old":
+            return '<form><input name="_username"><input name="_password"></form>'
+        return '<form action="/2fa_check">Zugangscode</form>'
+
+    def accept_submitted_mfa(request):
+        submitted = login_portal.calls[-1]["form"]["_auth_code"]
+        valid = (
+            submitted == "123456"
+            if "code" in user_input
+            else pyotp.TOTP(SECRET).verify(submitted, valid_window=1)
+        )
+        return "<html>Willkommen</html>" if valid else "Zugangscode ungültig"
+
+    login_portal.set("/login", login, method="POST")
+    login_portal.set("/2fa_check", accept_submitted_mfa, method="POST")
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_password"
+    assert _schema_keys(result) == {"password"}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"password": "new"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["password"] == "new"
+    assert entry.data[CONF_SESSION] == {"PHPSESSID": login_portal.session_id}
+
+
+@pytest.mark.parametrize(
+    ("user_input", "error"),
+    [
+        ({}, "code_or_secret_required"),
+        (
+            {"code": "123456", CONF_TOTP_SECRET: SECRET},
+            "choose_one_auth_method",
+        ),
+    ],
+    ids=["neither", "both"],
+)
+async def test_reauth_requires_exactly_one_auth_method(
+    recorder_mock, hass, custom_integration, login_portal, user_input, error
+):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="a@b.c", data={"email": "a@b.c", "password": "pw"}
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    assert result["errors"] == {"base": error}
+    assert login_portal.call_count("/login", "POST") == 0
+
+
+@pytest.mark.parametrize(
+    ("user_input", "error"),
+    [
+        ({"code": "000000"}, "invalid_code"),
+        ({CONF_TOTP_SECRET: SECRET}, "invalid_totp"),
+    ],
+    ids=["one_time_code", "replacement_totp_secret"],
+)
+async def test_reauth_invalid_mfa_stays_on_mfa_form(
+    recorder_mock, hass, custom_integration, login_portal, user_input, error
+):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="a@b.c", data={"email": "a@b.c", "password": "pw"}
     )
     entry.add_to_hass(hass)
     login_portal.set(
         "/login", '<form action="/2fa_check">Zugangscode</form>', method="POST"
     )
-    login_portal.set("/2fa_check", "<html>Willkommen</html>", method="POST")
+    login_portal.set("/2fa_check", "Zugangscode ungültig", method="POST")
 
     result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"email": "a@b.c", "password": "new"}
+        result["flow_id"], user_input
     )
-    assert result["step_id"] == "mfa"
 
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    assert result["errors"] == {"base": error}
+    assert entry.data["email"] == "a@b.c"
+    assert CONF_TOTP_SECRET not in entry.data
+
+
+async def test_reauth_expired_code_after_password_returns_for_a_fresh_code(
+    recorder_mock, hass, custom_integration, login_portal
+):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="a@b.c", data={"email": "a@b.c", "password": "old"}
+    )
+    entry.add_to_hass(hass)
+
+    def login(request):
+        if login_portal.calls[-1]["form"]["_password"] == "old":
+            return '<form><input name="_username"><input name="_password"></form>'
+        return '<form action="/2fa_check">Zugangscode</form>'
+
+    def accept_fresh_code(request):
+        submitted = login_portal.calls[-1]["form"]["_auth_code"]
+        return (
+            "<html>Willkommen</html>"
+            if submitted == "654321"
+            else "Zugangscode ungültig"
+        )
+
+    login_portal.set("/login", login, method="POST")
+    login_portal.set("/2fa_check", accept_fresh_code, method="POST")
+
+    result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": "123456"}
     )
-    await hass.async_block_till_done()
+    assert result["step_id"] == "reauth_password"
 
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "reauth_successful", result
-    assert entry.data["password"] == "new"
-    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
-
-
-async def test_reauth_with_a_different_account_is_rejected(
-    recorder_mock, hass, custom_integration, login_portal
-):
-    """Reauth must not silently repoint an entry at another RWB account."""
-    entry = MockConfigEntry(
-        domain=DOMAIN, unique_id="a@b.c", data={"email": "a@b.c", "password": "pw"}
-    )
-    entry.add_to_hass(hass)
-    login_portal.set("/login", "<html>Willkommen</html>", method="POST")
-
-    result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"email": "someone-else@b.c", "password": "pw"}
+        result["flow_id"], {"password": "new"}
+    )
+    assert result["step_id"] == "reauth_confirm"
+    assert result["errors"] == {"base": "invalid_code"}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": "654321"}
     )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "wrong_account"
-    assert entry.data["email"] == "a@b.c"
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["password"] == "new"
 
 
 async def test_wrong_totp_secret_falls_back_to_the_typed_code(
@@ -334,7 +469,7 @@ async def test_bad_totp_secret_reports_invalid_auth_not_unknown(
     assert result["errors"] == {"base": "invalid_auth"}
 
 
-async def test_reauth_secret_is_not_shadowed_by_options(
+async def test_reauth_replacement_totp_secret_is_written_through_options(
     recorder_mock, hass, custom_integration, login_portal
 ):
     """Regression: the coordinator reads the secret from options whenever that key
@@ -344,23 +479,42 @@ async def test_reauth_secret_is_not_shadowed_by_options(
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="a@b.c",
-        data={"email": "a@b.c", "password": "old"},
-        # The state the options flow leaves behind after a save with no secret.
-        options={CONF_TOTP_SECRET: "", CONF_COST_ENABLED: True},
+        data={
+            "email": "a@b.c",
+            "password": "stored-password",
+            CONF_TOTP_SECRET: "JBSWY3DPEHPK3PXQ",
+        },
+        # Options win over data, so reauth must replace this value as well.
+        options={CONF_TOTP_SECRET: "JBSWY3DPEHPK3PXR", CONF_COST_ENABLED: True},
     )
     entry.add_to_hass(hass)
-    login_portal.set("/login", "<html>Willkommen</html>", method="POST")
+    login_portal.set(
+        "/login", '<form action="/2fa_check">Zugangscode</form>', method="POST"
+    )
+
+    def accept_replacement_secret(request):
+        submitted = login_portal.calls[-1]["form"]["_auth_code"]
+        return (
+            "<html>Willkommen</html>"
+            if pyotp.TOTP(SECRET).verify(submitted, valid_window=1)
+            else "Zugangscode ungültig"
+        )
+
+    login_portal.set("/2fa_check", accept_replacement_secret, method="POST")
 
     result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {"email": "a@b.c", "password": "new", CONF_TOTP_SECRET: "JBSWY3DPEHPK3PXP"},
+        result["flow_id"], {CONF_TOTP_SECRET: SECRET}
     )
     await hass.async_block_till_done()
 
     assert result["reason"] == "reauth_successful"
     # What the coordinator will actually use.
-    assert _totp_secret_for(entry) == "JBSWY3DPEHPK3PXP"
+    assert _totp_secret_for(entry) == SECRET
+    assert entry.data[CONF_TOTP_SECRET] == SECRET
+    assert entry.options[CONF_TOTP_SECRET] == SECRET
+    assert entry.data["password"] == "stored-password"
+    assert entry.data[CONF_SESSION] == {"PHPSESSID": login_portal.session_id}
     # Unrelated options survive the write-through.
     assert entry.options[CONF_COST_ENABLED] is True
 
