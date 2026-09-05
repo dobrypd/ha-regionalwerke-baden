@@ -71,7 +71,7 @@ Add the integration: [![Add Integration][add-integration-badge]][add-integration
 
 | | Setup | Re-login (~30 days, when `PHPSESSID` expires) |
 | --- | --- | --- |
-| **Manual** (default) | Enter the 6-digit code once | A *Re-authenticate* notification asks for a fresh code |
+| **Manual** (default) | Enter the 6-digit code once | A *Re-authenticate* notification accepts a fresh code or lets you switch to automatic TOTP |
 | **Automatic** | Paste your TOTP secret | Nothing — `pyotp` generates the code, and even the historic import re-auths mid-stream |
 
 The secret is stored inside your Home Assistant config entry, exactly like the password, and can be changed or cleared later under **Configure**. Options always take precedence over whatever was captured during setup.
@@ -200,7 +200,7 @@ Runs at **03:30 local time** (`DEFAULT_SCAN_HOUR` / `DEFAULT_SCAN_MINUTE`) via `
 
 | Symptom | What to do |
 | --- | --- |
-| *MFA code required* keeps coming back | Supply a fresh code via the re-auth notification, or store a TOTP secret under **Configure** to silence it for good. |
+| *MFA code required* keeps coming back | Supply a fresh code or replacement TOTP secret via the re-auth notification, or store a TOTP secret under **Configure** to silence it for good. |
 | No cost statistic appears | Check the log — a wrong tariff name is reported with the list of names the file actually offers. A year with no published tariff file silently skips cost, never the kWh. |
 | Energy Dashboard shows nothing | The first sync must complete. Data is D+1, so the newest hour you will ever see is yesterday's. |
 | History looks truncated | Delete `.storage/regionalwerke_baden_historic_<entry_id>` and restart to re-run the full import. |

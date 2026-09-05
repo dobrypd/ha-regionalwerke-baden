@@ -44,6 +44,12 @@ STEP_USER_SCHEMA = vol.Schema(
 STEP_MFA_SCHEMA = vol.Schema(
     {vol.Required("code"): str, vol.Optional(CONF_TOTP_SECRET): str}
 )
+STEP_REAUTH_SCHEMA = vol.Schema(
+    {vol.Optional("code"): str, vol.Optional(CONF_TOTP_SECRET): str}
+)
+STEP_REAUTH_PASSWORD_SCHEMA = vol.Schema(
+    {vol.Required("password"): vol.All(str, vol.Length(min=1))}
+)
 
 
 def _client(
@@ -76,6 +82,8 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._email: str | None = None
         self._password: str | None = None
         self._totp_secret: str | None = None
+        self._reauth_code: str | None = None
+        self._reauth_totp_secret: str | None = None
 
     async def async_step_user(self, user_input: dict[str, str] | None = None):
         errors: dict[str, str] = {}
@@ -169,43 +177,110 @@ class RwbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(title=email, data=data)
 
     async def async_step_reauth(self, entry_data: dict[str, Any]):
+        entry = self._get_reauth_entry()
+        self._email = entry_data["email"]
+        self._password = entry_data["password"]
+        self._totp_secret = (
+            entry.options.get(CONF_TOTP_SECRET)
+            if CONF_TOTP_SECRET in entry.options
+            else entry_data.get(CONF_TOTP_SECRET)
+        )
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, user_input: dict[str, str] | None = None):
         errors: dict[str, str] = {}
-        entry = self._get_reauth_entry()
         if user_input is not None:
-            email = (user_input.get("email") or entry.data["email"]).strip()
-            password = user_input.get("password") or entry.data["password"]
-            # Same precedence the coordinator uses, so the prefill and the fallback
-            # are the secret actually in force rather than a stale one from data.
-            stored = (
-                entry.options.get(CONF_TOTP_SECRET)
-                if CONF_TOTP_SECRET in entry.options
-                else entry.data.get(CONF_TOTP_SECRET)
-            )
-            totp_secret = (
-                user_input.get(CONF_TOTP_SECRET) or stored or ""
-            ).strip() or None
-            try:
-                session = await _validate(self.hass, email, password, totp_secret)
-            except RwbMfaRequired:
-                self._email, self._password, self._totp_secret = (
-                    email,
-                    password,
-                    totp_secret,
-                )
-                return await self.async_step_mfa()
-            except RwbAuthError:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                _LOGGER.exception("Reauth failed")
-                errors["base"] = "unknown"
+            code = (user_input.get("code") or "").strip() or None
+            totp_secret = (user_input.get(CONF_TOTP_SECRET) or "").strip() or None
+            if code and totp_secret:
+                errors["base"] = "choose_one_auth_method"
+            elif not code and not totp_secret:
+                errors["base"] = "code_or_secret_required"
             else:
-                return await self._finish(email, password, totp_secret, session)
+                self._reauth_code = code
+                self._reauth_totp_secret = totp_secret
+                try:
+                    session, auth_error = await self._try_reauth()
+                except Exception:
+                    _LOGGER.exception("Reauth failed")
+                    errors["base"] = "unknown"
+                else:
+                    if auth_error == "invalid_password":
+                        return await self.async_step_reauth_password()
+                    if auth_error is not None:
+                        errors["base"] = auth_error
+                    else:
+                        assert session is not None
+                        return await self._finish_reauth(session)
 
         return self.async_show_form(
-            step_id="reauth_confirm", data_schema=STEP_USER_SCHEMA, errors=errors
+            step_id="reauth_confirm", data_schema=STEP_REAUTH_SCHEMA, errors=errors
+        )
+
+    async def async_step_reauth_password(
+        self, user_input: dict[str, str] | None = None
+    ):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._password = user_input["password"]
+            try:
+                session, auth_error = await self._try_reauth()
+            except Exception:
+                _LOGGER.exception("Reauth with updated password failed")
+                errors["base"] = "unknown"
+            else:
+                if auth_error == "invalid_password":
+                    errors["base"] = auth_error
+                elif auth_error is not None:
+                    return self.async_show_form(
+                        step_id="reauth_confirm",
+                        data_schema=STEP_REAUTH_SCHEMA,
+                        errors={"base": auth_error},
+                    )
+                else:
+                    assert session is not None
+                    return await self._finish_reauth(session)
+
+        return self.async_show_form(
+            step_id="reauth_password",
+            data_schema=STEP_REAUTH_PASSWORD_SCHEMA,
+            errors=errors,
+        )
+
+    async def _try_reauth(self) -> tuple[dict[str, str] | None, str | None]:
+        """Try reauth and return a precise error for the rejected stage."""
+        assert self._email is not None and self._password is not None
+        client = _client(
+            self.hass,
+            self._email,
+            self._password,
+            self._reauth_totp_secret,
+        )
+        try:
+            await client.login()
+        except RwbMfaRequired:
+            if not self._reauth_code:
+                return None, "invalid_totp"
+            try:
+                await client.submit_mfa(self._reauth_code)
+            except RwbAuthError:
+                return None, "invalid_code"
+        except RwbAuthError:
+            return None, "invalid_password"
+
+        try:
+            await client.discover()
+        except (RwbAuthError, RwbMfaRequired):
+            return None, "unknown"
+        return client.export_session(), None
+
+    async def _finish_reauth(self, session: dict[str, str]):
+        assert self._email is not None and self._password is not None
+        return await self._finish(
+            self._email,
+            self._password,
+            self._reauth_totp_secret or self._totp_secret,
+            session,
         )
 
     @staticmethod

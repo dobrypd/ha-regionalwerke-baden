@@ -27,16 +27,31 @@
       },
       "reauth_confirm": {
         "title": "Regionalwerke Baden erneut authentifizieren",
-        "description": "Die Portalsitzung ist abgelaufen. Bitte geben Sie Ihr Passwort erneut ein. Wenn Sie MFA verwenden und eine automatische Neuanmeldung wünschen, fügen Sie Ihren TOTP-Schlüssel hinzu.",
+        "description": "Die Portalsitzung ist abgelaufen. Geben Sie den aktuellen 6-stelligen Code ein oder fügen Sie Ihren TOTP-Schlüssel ein, um künftige Anmeldungen zu automatisieren. Ihre gespeicherte E-Mail-Adresse und Ihr Passwort werden verwendet.",
         "data": {
-          "email": "E-Mail",
-          "password": "Passwort",
+          "code": "Code (optional)",
           "totp_secret": "TOTP-Schlüssel (optional)"
+        },
+        "data_description": {
+          "code": "Der 6-stellige Code, den Ihre Authenticator-App gerade anzeigt.",
+          "totp_secret": "Base32-Zeichenfolge oder otpauth://-URI. Ersetzt einen zuvor gespeicherten Schlüssel."
+        }
+      },
+      "reauth_password": {
+        "title": "Passwort aktualisieren",
+        "description": "Die gespeicherten Zugangsdaten wurden abgelehnt. Geben Sie das aktuelle Passwort für dieses Konto ein und fahren Sie danach mit der Zwei-Faktor-Authentifizierung fort.",
+        "data": {
+          "password": "Passwort"
         }
       }
     },
     "error": {
+      "choose_one_auth_method": "Geben Sie entweder den aktuellen Zwei-Faktor-Code oder einen TOTP-Schlüssel ein, nicht beides",
+      "code_or_secret_required": "Geben Sie einen Zwei-Faktor-Code oder TOTP-Schlüssel ein",
       "invalid_auth": "Ungültige Zugangsdaten oder ungültiger Zwei-Faktor-Code",
+      "invalid_code": "Der aktuelle Zwei-Faktor-Code wurde abgelehnt",
+      "invalid_password": "Das Passwort wurde abgelehnt",
+      "invalid_totp": "Der TOTP-Schlüssel ist ungültig oder hat einen vom Portal abgelehnten Code erzeugt",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {

@@ -27,16 +27,31 @@
       },
       "reauth_confirm": {
         "title": "Ponowne uwierzytelnienie Regionalwerke Baden",
-        "description": "Sesja portalu wygasła. Wpisz ponownie hasło. Jeśli używasz MFA i chcesz automatycznego ponownego logowania, podaj sekret TOTP.",
+        "description": "Sesja portalu wygasła. Wpisz aktualny 6-cyfrowy kod albo wklej sekret TOTP, aby przyszłe logowania odbywały się automatycznie. Zostaną użyte zapisane adres e-mail i hasło.",
         "data": {
-          "email": "E-mail",
-          "password": "Hasło",
+          "code": "Kod (opcjonalnie)",
           "totp_secret": "Sekret TOTP (opcjonalnie)"
+        },
+        "data_description": {
+          "code": "6-cyfrowy kod aktualnie wyświetlany przez aplikację uwierzytelniającą.",
+          "totp_secret": "Ciąg base32 lub URI otpauth://. Zastępuje wcześniej zapisany sekret."
+        }
+      },
+      "reauth_password": {
+        "title": "Zaktualizuj hasło",
+        "description": "Zapisane dane logowania zostały odrzucone. Wpisz aktualne hasło do tego konta, a następnie kontynuuj uwierzytelnianie dwuskładnikowe.",
+        "data": {
+          "password": "Hasło"
         }
       }
     },
     "error": {
+      "choose_one_auth_method": "Wpisz aktualny kod dwuskładnikowy albo sekret TOTP — nie oba jednocześnie",
+      "code_or_secret_required": "Wpisz kod dwuskładnikowy lub sekret TOTP",
       "invalid_auth": "Nieprawidłowe dane logowania lub kod dwuskładnikowy",
+      "invalid_code": "Aktualny kod dwuskładnikowy został odrzucony",
+      "invalid_password": "Hasło zostało odrzucone",
+      "invalid_totp": "Sekret TOTP jest nieprawidłowy lub wygenerował kod odrzucony przez portal",
       "unknown": "Nieoczekiwany błąd"
     },
     "abort": {
